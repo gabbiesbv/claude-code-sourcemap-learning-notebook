@@ -322,11 +322,11 @@ type Message =
 
 ```
 User: "帮我读取 package.json"
- ↓
+  ↓
 Assistant: [tool_use: { name: 'Read', input: { file_path: 'package.json' } }]
- ↓
+  ↓
 User: [tool_result: { content: '{"name": "claude-code", ...}' }]
- ↓
+  ↓
 Assistant: [text: "package.json 的内容如下：..."]
 ```
 
@@ -337,10 +337,10 @@ Assistant: [text: "package.json 的内容如下：..."]
 
 ```typescript
 // QueryEngine.ts
-async * submitMessage(prompt): AsyncGenerator < SDKMessage > {
-  for await(const message of query({ ... })) {
-  yield message; // 逐条产出消息
-}
+async *submitMessage(prompt): AsyncGenerator<SDKMessage> {
+  for await (const message of query({ ... })) {
+    yield message; // 逐条产出消息
+  }
 }
 
 // query.ts
@@ -371,12 +371,12 @@ async function* query(params): AsyncGenerator<Message> {
 export const GlobTool = buildTool({
   name: 'Glob',
   inputSchema: z.object({ pattern: z.string() }),
-  async call(input, context) { ... },;
- // 以下由 buildTool 提供默认值：
- // isEnabled: () => true
- // isReadOnly: () => false
- // isConcurrencySafe: () => false
- // checkPermissions: () => ({ behavior: 'allow' })
+  async call(input, context) { ... },
+  // 以下由 buildTool 提供默认值：
+  // isEnabled: () => true
+  // isReadOnly: () => false
+  // isConcurrencySafe: () => false
+  // checkPermissions: () => ({ behavior: 'allow' })
 });
 ```
 

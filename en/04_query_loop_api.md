@@ -26,18 +26,18 @@ The core of query.ts is a `while(true)` loop, not recursive calls. This is a wel
 // Mutable cross-iteration state. The loop body destructures it at the beginning of each iteration.
 // Continue sites write `state = { ... }` instead of 9 separate assignments.
 type State = {
- messages: Message[]
- toolUseContext: ToolUseContext
- autoCompactTracking: AutoCompactTrackingState | undefined
- maxOutputTokensRecoveryCount: number
- hasAttemptedReactiveCompact: boolean
- maxOutputTokensOverride: number | undefined
- pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
- stopHookActive: boolean | undefined
- turnCount: number
- // Why the last iteration continued. Undefined for the first iteration.
- // Allows tests to assert whether the recovery path is triggered without checking message content.
- transition: Continue | undefined
+  messages: Message[]
+  toolUseContext: ToolUseContext
+  autoCompactTracking: AutoCompactTrackingState | undefined
+  maxOutputTokensRecoveryCount: number
+  hasAttemptedReactiveCompact: boolean
+  maxOutputTokensOverride: number | undefined
+  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
+  stopHookActive: boolean | undefined
+  turnCount: number
+  // Why the last iteration continued. Undefined for the first iteration.
+  // Allows tests to assert whether the recovery path is triggered without checking message content.
+  transition: Continue | undefined
 }
 ```
 
@@ -50,8 +50,8 @@ it is also used to **prevent the recovery loop**:
 // If the last one already did collapse_drain_retry, and this one is still 413,
 // do not try to drain again, but fall through to reactive compact
 if (state.transition?.reason !== 'collapse_drain_retry') {
- const drained = contextCollapse.recoverFromOverflow(...)
- // ...
+  const drained = contextCollapse.recoverFromOverflow(...)
+  // ...
 }
 ```
 
@@ -92,18 +92,18 @@ Each continue site precisely controls which states are reset and which are retai
 ```typescript
 // max_output_tokens recovery: retain hasAttemptedReactiveCompact
 const next: State = {
- messages: [...messagesForQuery, ...assistantMessages, recoveryMessage],
- maxOutputTokensRecoveryCount: maxOutputTokensRecoveryCount + 1, // Increment
- hasAttemptedReactiveCompact, // ← Retain! Do not reset
- // ...
+  messages: [...messagesForQuery, ...assistantMessages, recoveryMessage],
+  maxOutputTokensRecoveryCount: maxOutputTokensRecoveryCount + 1, // Increment
+  hasAttemptedReactiveCompact, // ← Retain! Do not reset
+  // ...
 }
 
 // Normal next turn: reset recovery counter
 const next: State = {
- messages: [...messagesForQuery, ...assistantMessages, ...toolResults],
- maxOutputTokensRecoveryCount: 0, // ← Reset
- hasAttemptedReactiveCompact: false, // ← Reset
- // ...
+  messages: [...messagesForQuery, ...assistantMessages, ...toolResults],
+  maxOutputTokensRecoveryCount: 0, // ← Reset
+  hasAttemptedReactiveCompact: false, // ← Reset
+  // ...
 }
 
 // stop_hook_blocking: retain hasAttemptedReactiveCompact
@@ -234,7 +234,6 @@ T+4000ms Phase 2: Collect tool results
          │   Read completed → yield tool_result                       User message,
          │   Grep completed → yield tool_result                       Assistant(text + 2 tool_use),
          │                                                         user(2 tool_result)
-```markdown
          ├── Consume memoryPrefetch (if completed)                   ]
          ├── Consume skillDiscovery (if any)
          └── needsFollowUp = true (has tool_use)
@@ -312,19 +311,19 @@ Traditional approach: Wait for Claude to return a complete response → Parse al
 
 ```
 Traditional method (serial):
- Claude response [████████████████] 5s
- Parse tool_use 0.1s
- Execute Tool A [████] 2s
- Execute Tool B [██████] 3s
- Execute Tool C [███] 1.5s
- Total: 5 + 0.1 + 2 + 3 + 1.5 = 11.6s
+  Claude response [████████████████] 5s
+  Parse tool_use 0.1s
+  Execute Tool A [████] 2s
+  Execute Tool B [██████] 3s
+  Execute Tool C [███] 1.5s
+  Total: 5 + 0.1 + 2 + 3 + 1.5 = 11.6s
 
 Streaming method (StreamingToolExecutor):
- Claude response [████████████████] 5s
- Tool A [████] ← Started while Claude is still outputting!
- Tool B [██████] ← Started before Tool A is completed!
- Tool C [███] ← Executed in parallel!
- Total: 5 + max(2,3,1.5) = 8s 31% saved
+  Claude response [████████████████] 5s
+  Tool A [████] ← Started while Claude is still outputting!
+  Tool B [██████] ← Started before Tool A is completed!
+  Tool C [███] ← Executed in parallel!
+  Total: 5 + max(2,3,1.5) = 8s 31% saved
 ```
 
 ### 4.2.2 Concurrency Control Model: Why Not Use Actor or DAG?
@@ -371,12 +370,12 @@ StreamingToolExecutor uses an ingenious concurrency control model:
 ```typescript
 // Core judgment: Can this tool be executed in parallel with other tools?
 private canExecuteTool(isConcurrencySafe: boolean): boolean {
- const executingTools = this.tools.filter(t => t.status === 'executing')
- return (
- executingTools.length === 0 || // No tools are being executed
- (isConcurrencySafe && executingTools.every(t => t.isConcurrencySafe))
- // Or: Itself is safe AND all being executed are safe
- )
+  const executingTools = this.tools.filter(t => t.status === 'executing')
+  return (
+  executingTools.length === 0 || // No tools are being executed
+  (isConcurrencySafe && executingTools.every(t => t.isConcurrencySafe))
+  // Or: Itself is safe AND all being executed are safe
+  )
 }
 ```
 
@@ -410,22 +409,22 @@ the others usually make no sense anymore (since Bash commands often have implici
 private siblingAbortController: AbortController
 
 constructor(toolDefinitions, canUseTool, toolUseContext) {
- // siblingAbortController is a child controller of toolUseContext.abortController
- // Canceling it will not cancel the parent → query loop will not end this turn
- this.siblingAbortController = createChildAbortController(
- toolUseContext.abortController,
- )
+  // siblingAbortController is a child controller of toolUseContext.abortController
+  // Canceling it will not cancel the parent → query loop will not end this turn
+  this.siblingAbortController = createChildAbortController(
+  toolUseContext.abortController,
+  )
 }
 
 // During tool execution:
 if (isErrorResult) {
- // Only Bash errors cancel sibling tools!
- // Read/WebFetch, etc., are independent — one failure should not affect others
- if (tool.block.name === BASH_TOOL_NAME) {
- this.hasErrored = true
- this.erroredToolDescription = this.getToolDescription(tool)
- this.siblingAbortController.abort('sibling_error')
- }
+  // Only Bash errors cancel sibling tools!
+  // Read/WebFetch, etc., are independent — one failure should not affect others
+  if (tool.block.name === BASH_TOOL_NAME) {
+    this.hasErrored = true
+    this.erroredToolDescription = this.getToolDescription(tool)
+    this.siblingAbortController.abort('sibling_error')
+  }
 }
 ```
 
@@ -447,17 +446,17 @@ Note the bubble-up logic in the abort event listener of toolAbortController:
 
 ```typescript
 toolAbortController.signal.addEventListener('abort', () => {
- // If not sibling_error, and parent is not aborted, and not discarded
- // → Bubble up to parent (e.g., permission denial needs to end the entire turn)
- if (
- toolAbortController.signal.reason !== 'sibling_error' &&
- !this.toolUseContext.abortController.signal.aborted &&
- !this.discarded
- ) {
- this.toolUseContext.abortController.abort(
- toolAbortController.signal.reason,
- )
- }
+  // If not sibling_error, and parent is not aborted, and not discarded
+  // → Bubble up to parent (e.g., permission denial needs to end the entire turn)
+  if (
+  toolAbortController.signal.reason !== 'sibling_error' &&
+  !this.toolUseContext.abortController.signal.aborted &&
+  !this.discarded
+  ) {
+    this.toolUseContext.abortController.abort(
+    toolAbortController.signal.reason,
+    )
+  }
 }, { once: true })
 ```
 
@@ -469,39 +468,39 @@ These messages need to be **immediately** passed to the UI, not wait for the too
 ```typescript
 // Progress messages are stored in a separate queue
 type TrackedTool = {
- // ...
- results?: Message[] // Final results (yielded after the tool is completed)
- pendingProgress: Message[] // Progress messages (immediately yielded)
+  // ...
+  results?: Message[] // Final results (yielded after the tool is completed)
+  pendingProgress: Message[] // Progress messages (immediately yielded)
 }
 
 // When there is a new progress message, wake up the waiting getRemainingResults
 if (update.message.type === 'progress') {
- tool.pendingProgress.push(update.message)
- // Wake up!
- if (this.progressAvailableResolve) {
- this.progressAvailableResolve()
- this.progressAvailableResolve = undefined
- }
+  tool.pendingProgress.push(update.message)
+  // Wake up!
+  if (this.progressAvailableResolve) {
+    this.progressAvailableResolve()
+    this.progressAvailableResolve = undefined
+  }
 }
 
 // Waiting logic in getRemainingResults:
 async *getRemainingResults() {
- while (this.hasUnfinishedTools()) {
- // First yield completed results and progress
- for (const result of this.getCompletedResults()) {
- yield result
- }
-}
+  while (this.hasUnfinishedTools()) {
+    // First yield completed results and progress
+    for (const result of this.getCompletedResults()) {
+      yield result
+    }
+  }
 ```
 ```plaintext
 // If there are still executing tools, wait for any to complete OR progress to reach
 if (this.hasExecutingTools() && !this.hasCompletedResults()) {
- const progressPromise = new Promise<void>(resolve => {
- this.progressAvailableResolve = resolve // Register wake-up callback
- })
- await Promise.race([...executingPromises, progressPromise])
- }
- }
+  const progressPromise = new Promise<void>(resolve => {
+    this.progressAvailableResolve = resolve // Register wake-up callback
+  })
+  await Promise.race([...executingPromises, progressPromise])
+}
+}
 }
 ```
 
@@ -519,22 +518,22 @@ the tools that have already started executing need to be discarded:
 
 ```typescript
 if (streamingFallbackOccured) {
- // 1. Send tombstone for assistant messages that have been yielded (remove from UI and transcript)
- for (const msg of assistantMessages) {
- yield { type: 'tombstone', message: msg }
- }
- 
- // 2. Clear all states
- assistantMessages.length = 0
- toolResults.length = 0
- toolUseBlocks.length = 0
- needsFollowUp = false
- 
- // 3. Discard old executor and create a new one
- if (streamingToolExecutor) {
- streamingToolExecutor.discard() // Mark as discarded
- streamingToolExecutor = new StreamingToolExecutor(...) // Brand new
- }
+  // 1. Send tombstone for assistant messages that have been yielded (remove from UI and transcript)
+  for (const msg of assistantMessages) {
+    yield { type: 'tombstone', message: msg }
+  }
+
+  // 2. Clear all states
+  assistantMessages.length = 0
+  toolResults.length = 0
+  toolUseBlocks.length = 0
+  needsFollowUp = false
+
+  // 3. Discard old executor and create a new one
+  if (streamingToolExecutor) {
+    streamingToolExecutor.discard() // Mark as discarded
+    streamingToolExecutor = new StreamingToolExecutor(...) // Brand new
+  }
 }
 ```
 
@@ -610,19 +609,19 @@ This is a particularly elegant design pattern:
 
 ```
 REPL Message Array (full history, never modified):
- [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8]
+  [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8]
 
 Collapse Store (summary storage):
- commit1: { archived: [msg1, msg2, msg3], summary: "..." }
- commit2: { archived: [msg4, msg5], summary: "..." }
+  commit1: { archived: [msg1, msg2, msg3], summary: "..." }
+  commit2: { archived: [msg4, msg5], summary: "..." }
 
 Output of projectView() (recalculated every iteration):
- [summary1, summary2, msg6, msg7, msg8]
+  [summary1, summary2, msg6, msg7, msg8]
 
 Advantages:
- - REPL array is never modified → No loss of original data
- - Summaries can be regenerated at any time
- - Similar to Git's commit log → Can "replay" collapsed history
+  - REPL array is never modified → No loss of original data
+  - Summaries can be regenerated at any time
+  - Similar to Git's commit log → Can "replay" collapsed history
 ```
 
 ---
@@ -634,21 +633,21 @@ When Claude's output is truncated, the recovery strategy is divided into three s
 
 ```
 Stage 1: Escalate (Increase Limit)
- Conditions: Default 8k limit used && No user override
- Actions: Retry the same request, but max_output_tokens = 64k
- Features: No extra messages, no multi-turn overhead
+  Conditions: Default 8k limit used && No user override
+  Actions: Retry the same request, but max_output_tokens = 64k
+  Features: No extra messages, no multi-turn overhead
 
 Stage 2: Multi-turn Recovery
- Conditions: Still truncated after escalation || User override exists
- Actions: Inject recovery message to let Claude continue
- Message: "Output token limit hit. Resume directly — no apology,
- no recap. Pick up mid-thought if that is where the cut
- happened. Break remaining work into smaller pieces."
- Maximum: 3 times
+  Conditions: Still truncated after escalation || User override exists
+  Actions: Inject recovery message to let Claude continue
+  Message: "Output token limit hit. Resume directly — no apology,
+  no recap. Pick up mid-thought if that is where the cut
+  happened. Break remaining work into smaller pieces."
+  Maximum: 3 times
 
 Stage 3: Give Up
- Conditions: All 3 recovery attempts fail
- Actions: Display the truncated message
+  Conditions: All 3 recovery attempts fail
+  Actions: Display the truncated message
 ```
 
 **Clever Idea 6: Careful Phrasing of Recovery Messages**
@@ -663,23 +662,23 @@ Note the careful phrasing of recovery messages:
 
 ```
 Stage 1: Context Collapse Drain
- Conditions: Pending collapse to be submitted && Last attempt was not collapse_drain_retry
- Actions: Submit all pending collapses
- Cost: Zero (pure local operation)
+  Conditions: Pending collapse to be submitted && Last attempt was not collapse_drain_retry
+  Actions: Submit all pending collapses
+  Cost: Zero (pure local operation)
 
 Stage 2: Reactive Compact
- Conditions: Drain is not enough || No collapse
- Actions: Call Claude to generate a summary
- Cost: One API call
- Features: Only try once (guarded by hasAttemptedReactiveCompact)
+  Conditions: Drain is not enough || No collapse
+  Actions: Call Claude to generate a summary
+  Cost: One API call
+  Features: Only try once (guarded by hasAttemptedReactiveCompact)
 
 Stage 3: Give Up
- Conditions: Reactive compact is also not enough
- Actions: Display error message
- Key: Do not enter Stop Hooks!
- Reason: "hooks have nothing meaningful to evaluate. Running stop hooks
- on prompt-too-long creates a death spiral: error → hook blocking
- → retry → error → …"
+  Conditions: Reactive compact is also not enough
+  Actions: Display error message
+  Key: Do not enter Stop Hooks!
+  Reason: "hooks have nothing meaningful to evaluate. Running stop hooks
+  on prompt-too-long creates a death spiral: error → hook blocking
+  → retry → error → …"
 ```
 
 ### 4.4.3 Withhold Mode — Delayed Error Display
@@ -706,7 +705,7 @@ and only display the error when recovery fails.
 ```typescript
 // Determine mediaRecoveryEnabled before the streaming loop
 const mediaRecoveryEnabled =
- reactiveCompact?.isReactiveCompactEnabled() ?? false
+  reactiveCompact?.isReactiveCompactEnabled() ?? false
 
 // Why? Because CACHED_MAY_BE_STALE might flip during a 5-30s streaming transmission
 // If it's true when withholding, but becomes false when recovering → Message loss!
@@ -721,11 +720,11 @@ The prompt cache key of the Anthropic API consists of the following parts:
 
 ```
 cache_key = hash(
- system_prompt, ← Must be exactly the same
- tools, ← Must be exactly the same (including order)
- model, ← Must be exactly the same
- messages[0..N-1], ← Prefix must be exactly the same (byte-level)
- thinking_config, ← Must be exactly the same
+  system_prompt, ← Must be exactly the same
+  tools, ← Must be exactly the same (including order)
+  model, ← Must be exactly the same
+  messages[0..N-1], ← Prefix must be exactly the same (byte-level)
+  thinking_config, ← Must be exactly the same
 )
 ```
 
@@ -743,9 +742,9 @@ cache_key = hash(
 // The original message remains unchanged → The prefix bytes are the same for the next request
 let yieldMessage: typeof message = message
 if (addedFields) {
- clonedContent ??= [...message.message.content]
- clonedContent[i] = { ...block, input: inputCopy }
- yieldMessage = { ...message, message: { ...message.message, content: clonedContent } }
+  clonedContent ??= [...message.message.content]
+  clonedContent[i] = { ...block, input: inputCopy }
+  yieldMessage = { ...message, message: { ...message.message, content: clonedContent } }
 }
 // Comment: "The original `message` is left untouched for assistantMessages.push
 // below — it flows back to the API and mutating it would break prompt caching
@@ -756,11 +755,11 @@ if (addedFields) {
 ```typescript
 // CacheSafeParams — Parameters that must be exactly the same as the parent
 export type CacheSafeParams = {
- systemPrompt: SystemPrompt
- userContext: { [k: string]: string }
- systemContext: { [k: string]: string }
- toolUseContext: ToolUseContext
- forkContextMessages: Message[] // Parent's message history
+  systemPrompt: SystemPrompt
+  userContext: { [k: string]: string }
+  systemContext: { [k: string]: string }
+  toolUseContext: ToolUseContext
+  forkContextMessages: Message[] // Parent's message history
 }
 
 // Fork sub-agent uses parent's messages as prefix
@@ -783,8 +782,8 @@ export type CacheSafeParams = {
 // Avoid creating a new closure for each iteration → Only retain the latest request body (~700KB)
 // Instead of all request bodies (~500MB for long sessions)
 const dumpPromptsFetch = config.gates.isAnt
- ? createDumpPromptsFetch(toolUseContext.agentId ?? config.sessionId)
- : undefined
+  ? createDumpPromptsFetch(toolUseContext.agentId ?? config.sessionId)
+  : undefined
 ```
 
 ---
@@ -794,29 +793,29 @@ Token Budget is a mechanism that allows Claude to use more tokens in a single tu
 
 ```typescript
 export function checkTokenBudget(
- tracker: BudgetTracker,
- agentId: string | undefined,
- budget: number | null,
- globalTurnTokens: number,
+tracker: BudgetTracker,
+agentId: string | undefined,
+budget: number | null,
+globalTurnTokens: number,
 ): TokenBudgetDecision {
- // Sub-agents do not participate in budget (only main thread)
- if (agentId || budget === null || budget <= 0) {
- return { action: 'stop', completionEvent: null }
- }
+  // Sub-agents do not participate in budget (only main thread)
+  if (agentId || budget === null || budget <= 0) {
+    return { action: 'stop', completionEvent: null }
+  }
 
- const pct = Math.round((turnTokens / budget) * 100)
- const deltaSinceLastCheck = globalTurnTokens - tracker.lastGlobalTurnTokens
+  const pct = Math.round((turnTokens / budget) * 100)
+  const deltaSinceLastCheck = globalTurnTokens - tracker.lastGlobalTurnTokens
 
- // Clever Idea 8: Diminishing Returns Detection
- const isDiminishing =
- tracker.continuationCount >= 3 && // At least continued 3 times
- deltaSinceLastCheck < DIMINISHING_THRESHOLD && // This increment < 500 tokens
- tracker.lastDeltaTokens < DIMINISHING_THRESHOLD // Last increment also < 500
+  // Clever Idea 8: Diminishing Returns Detection
+  const isDiminishing =
+  tracker.continuationCount >= 3 && // At least continued 3 times
+  deltaSinceLastCheck < DIMINISHING_THRESHOLD && // This increment < 500 tokens
+  tracker.lastDeltaTokens < DIMINISHING_THRESHOLD // Last increment also < 500
 
- // If no diminishing and not reaching 90% → Continue
- if (!isDiminishing && turnTokens < budget * COMPLETION_THRESHOLD) {
- return { action: 'continue', nudgeMessage: '...' }
- }
+  // If no diminishing and not reaching 90% → Continue
+  if (!isDiminishing && turnTokens < budget * COMPLETION_THRESHOLD) {
+    return { action: 'continue', nudgeMessage: '...' }
+  }
 ```
 ```plaintext
 // Otherwise, stop
@@ -856,12 +855,12 @@ The message queue is a globally unique instance across the process, but each Age
 // The main thread only consumes messages with agentId === undefined
 // Sub Agents only consume their own agentId's task-notification
 const queuedCommandsSnapshot = getCommandsByMaxPriority(
- sleepRan ? 'later' : 'next',
+sleepRan ? 'later' : 'next',
 ).filter(cmd => {
- if (isSlashCommand(cmd)) return false // Slash commands are not processed here
- if (isMainThread) return cmd.agentId === undefined
- // Sub Agents only consume task-notification, not user prompts
- return cmd.mode === 'task-notification' && cmd.agentId === currentAgentId
+  if (isSlashCommand(cmd)) return false // Slash commands are not processed here
+  if (isMainThread) return cmd.agentId === undefined
+  // Sub Agents only consume task-notification, not user prompts
+  return cmd.mode === 'task-notification' && cmd.agentId === currentAgentId
 })
 ```
 
@@ -881,21 +880,21 @@ and normally only consume messages with 'next' priority.
 ```typescript
 // Initiate prefetching at the query() entry point (triggered only once)
 using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
- state.messages, state.toolUseContext,
+state.messages, state.toolUseContext,
 )
 
 // Attempt to consume after each iteration of tool execution
 if (
- pendingMemoryPrefetch &&
- pendingMemoryPrefetch.settledAt !== null && // completed
- pendingMemoryPrefetch.consumedOnIteration === -1 // not consumed yet
+pendingMemoryPrefetch &&
+pendingMemoryPrefetch.settledAt !== null && // completed
+pendingMemoryPrefetch.consumedOnIteration === -1 // not consumed yet
 ) {
- const memoryAttachments = filterDuplicateMemoryAttachments(
- await pendingMemoryPrefetch.promise,
- toolUseContext.readFileState, // filter out already read files
- )
- // ...
- pendingMemoryPrefetch.consumedOnIteration = turnCount - 1
+  const memoryAttachments = filterDuplicateMemoryAttachments(
+  await pendingMemoryPrefetch.promise,
+  toolUseContext.readFileState, // filter out already read files
+  )
+  // ...
+  pendingMemoryPrefetch.consumedOnIteration = turnCount - 1
 }
 ```
 
@@ -941,8 +940,8 @@ handleStopHooks()
 ```typescript
 // If the last message is an API error message, skip Stop Hooks
 if (lastMessage?.isApiErrorMessage) {
- void executeStopFailureHooks(lastMessage, toolUseContext)
- return { reason: 'completed' }
+  void executeStopFailureHooks(lastMessage, toolUseContext)
+  return { reason: 'completed' }
 }
 ```
 
@@ -976,23 +975,23 @@ Claude Code has two modes of tool orchestration, switched through a feature gate
 // ↑ Parallel execution ↑ Serial ↑ Parallel execution
 
 function partitionToolCalls(toolUseMessages, toolUseContext): Batch[] {
- return toolUseMessages.reduce((acc, toolUse) => {
- const isConcurrencySafe = /* ... */
- // If the current tool is safe AND the last batch is also safe → Merge
- if (isConcurrencySafe && acc[acc.length - 1]?.isConcurrencySafe) {
- acc[acc.length - 1].blocks.push(toolUse)
- } else {
- acc.push({ isConcurrencySafe, blocks: [toolUse] })
- }
- return acc
- }, [])
+  return toolUseMessages.reduce((acc, toolUse) => {
+    const isConcurrencySafe = /* ... */
+    // If the current tool is safe AND the last batch is also safe → Merge
+    if (isConcurrencySafe && acc[acc.length - 1]?.isConcurrencySafe) {
+      acc[acc.length - 1].blocks.push(toolUse)
+    } else {
+      acc.push({ isConcurrencySafe, blocks: [toolUse] })
+    }
+    return acc
+  }, [])
 }
 ```
 
 **Concurrency Limit**:
 ```typescript
 function getMaxToolUseConcurrency(): number {
- return parseInt(process.env.CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY || '', 10) || 10
+  return parseInt(process.env.CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY || '', 10) || 10
 }
 ```
 Default is up to 10 tools in parallel, which can be overridden by environment variables.
@@ -1005,13 +1004,13 @@ Default is up to 10 tools in parallel, which can be overridden by environment va
 const config = buildQueryConfig()
 
 export type QueryConfig = {
- sessionId: SessionId
- gates: {
- streamingToolExecution: boolean // Whether to enable streaming tool execution
- emitToolUseSummaries: boolean // Whether to generate tool use summaries
- isAnt: boolean // Whether it is an Anthropic internal user
- fastModeEnabled: boolean // Whether to enable fast mode
- }
+  sessionId: SessionId
+  gates: {
+  streamingToolExecution: boolean // Whether to enable streaming tool execution
+  emitToolUseSummaries: boolean // Whether to generate tool use summaries
+  isAnt: boolean // Whether it is an Anthropic internal user
+  fastModeEnabled: boolean // Whether to enable fast mode
+  }
 }
 ```
 
@@ -1041,17 +1040,17 @@ Tool use summaries are for mobile UI (mobile does not display complete tool call
 ```typescript
 // After tool execution, asynchronously generate summaries (do not block the next API call)
 nextPendingToolUseSummary = generateToolUseSummary({
- tools: toolInfoForSummary,
- signal: toolUseContext.abortController.signal,
- isNonInteractiveSession: ...,
- lastAssistantText,
+  tools: toolInfoForSummary,
+  signal: toolUseContext.abortController.signal,
+  isNonInteractiveSession: ...,
+  lastAssistantText,
 }).then(summary => summary ? createToolUseSummaryMessage(summary, toolUseIds) : null)
- .catch(() => null) // Silent failure
+.catch(() => null) // Silent failure
 
 // Consume at the start of the next iteration (Haiku ~1s, model streaming 5-30s)
 if (pendingToolUseSummary) {
- const summary = await pendingToolUseSummary
- if (summary) yield summary
+  const summary = await pendingToolUseSummary
+  if (summary) yield summary
 }
 ```
 
@@ -1166,8 +1165,7 @@ not inferred at runtime. This is much simpler than databases but also means that
 ```
 const config = snapshot(mutableGlobalConfig) // Snapshot at the entry point
 for (const event of events) {
-```markdown
-state = reducer(state, event, config) // config is immutable
+  state = reducer(state, event, config) // config is immutable
 }
 ```
 

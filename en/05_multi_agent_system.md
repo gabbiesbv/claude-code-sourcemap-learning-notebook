@@ -69,56 +69,56 @@ This is the most core design decision of the entire Agent system. `createSubagen
 
 ```typescript
 export function createSubagentContext(
- parentContext: ToolUseContext,
- overrides?: SubagentContextOverrides,
+  parentContext: ToolUseContext,
+  overrides?: SubagentContextOverrides,
 ): ToolUseContext {
- return {
- // ===== Default isolated states =====
+  return {
+  // ===== Default isolated states =====
 
- // File cache: clone (not shared)
- readFileState: cloneFileStateCache(
- overrides?.readFileState ?? parentContext.readFileState,
- ),
+  // File cache: clone (not shared)
+  readFileState: cloneFileStateCache(
+  overrides?.readFileState ?? parentContext.readFileState,
+  ),
 
- // Brand new set (does not inherit from parent)
- nestedMemoryAttachmentTriggers: new Set<string>(),
- loadedNestedMemoryPaths: new Set<string>(),
- dynamicSkillDirTriggers: new Set<string>(),
- discoveredSkillNames: new Set<string>(),
- toolDecisions: undefined,
+  // Brand new set (does not inherit from parent)
+  nestedMemoryAttachmentTriggers: new Set<string>(),
+  loadedNestedMemoryPaths: new Set<string>(),
+  dynamicSkillDirTriggers: new Set<string>(),
+  discoveredSkillNames: new Set<string>(),
+  toolDecisions: undefined,
 
- // ===== Explicit opt-in sharing =====
+  // ===== Explicit opt-in sharing =====
 
- // setAppState: default no-op unless shareSetAppState = true
- setAppState: overrides?.shareSetAppState
- ? parentContext.setAppState
- : () => {},
+  // setAppState: default no-op unless shareSetAppState = true
+  setAppState: overrides?.shareSetAppState
+  ? parentContext.setAppState
+  : () => {},
 
- // setResponseLength: default no-op unless shareSetResponseLength = true
- setResponseLength: overrides?.shareSetResponseLength
- ? parentContext.setResponseLength
- : () => {},
+  // setResponseLength: default no-op unless shareSetResponseLength = true
+  setResponseLength: overrides?.shareSetResponseLength
+  ? parentContext.setResponseLength
+  : () => {},
 
- // abortController: default create sub-controller unless shareAbortController = true
- abortController: overrides?.abortController ??
- (overrides?.shareAbortController
- ? parentContext.abortController
- : createChildAbortController(parentContext.abortController)),
+  // abortController: default create sub-controller unless shareAbortController = true
+  abortController: overrides?.abortController ??
+  (overrides?.shareAbortController
+  ? parentContext.abortController
+  : createChildAbortController(parentContext.abortController)),
 
- // ===== Always no-op UI callbacks ====
- addNotification: undefined,
- setToolJSX: undefined,
- setStreamMode: undefined,
- setSDKStatus: undefined,
- openMessageSelector: undefined,
+  // ===== Always no-op UI callbacks ====
+  addNotification: undefined,
+  setToolJSX: undefined,
+  setStreamMode: undefined,
+  setSDKStatus: undefined,
+  openMessageSelector: undefined,
 
- // ===== Always shared ====
- // Task registration must reach the root store (even if setAppState is no-op)
- setAppStateForTasks:
- parentContext.setAppStateForTasks ?? parentContext.setAppState,
- // Attribution is a scoped functional callback, safely shared
- updateAttributionState: parentContext.updateAttributionState,
- }
+  // ===== Always shared ====
+  // Task registration must reach the root store (even if setAppState is no-op)
+  setAppStateForTasks:
+  parentContext.setAppStateForTasks ?? parentContext.setAppState,
+  // Attribution is a scoped functional callback, safely shared
+  updateAttributionState: parentContext.updateAttributionState,
+  }
 }
 ```
 
@@ -147,10 +147,10 @@ their background Bash tasks still need to be registered with the root store, oth
 // prefix differs → cache miss. A clone makes identical decisions →
 // cache hit.
 contentReplacementState:
- overrides?.contentReplacementState ??
- (parentContext.contentReplacementState
- ? cloneContentReplacementState(parentContext.contentReplacementState)
- : undefined),
+  overrides?.contentReplacementState ??
+  (parentContext.contentReplacementState
+  ? cloneContentReplacementState(parentContext.contentReplacementState)
+  : undefined),
 ```
 
 This is for prompt cache hits: Forked child Agents process messages from the parent,
@@ -164,54 +164,54 @@ Agents have a set of fine-grained inheritance rules for permission modes:
 
 ```typescript
 const agentGetAppState = () => {
- const state = toolUseContext.getAppState()
- let toolPermissionContext = state.toolPermissionContext
+  const state = toolUseContext.getAppState()
+  let toolPermissionContext = state.toolPermissionContext
 
- // Rule 1: Agents can define their own permission modes
- // However! bypassPermissions, acceptEdits, auto modes cannot be overridden
- if (
- agentPermissionMode &&
- state.toolPermissionContext.mode !== 'bypassPermissions' &&
- state.toolPermissionContext.mode !== 'acceptEdits' &&
- !(feature('TRANSCRIPT_CLASSIFIER') &&
- state.toolPermissionContext.mode === 'auto')
- ) {
- toolPermissionContext = {
- ...toolPermissionContext,
- mode: agentPermissionMode,
- }
- }
+  // Rule 1: Agents can define their own permission modes
+  // However! bypassPermissions, acceptEdits, auto modes cannot be overridden
+  if (
+  agentPermissionMode &&
+  state.toolPermissionContext.mode !== 'bypassPermissions' &&
+  state.toolPermissionContext.mode !== 'acceptEdits' &&
+  !(feature('TRANSCRIPT_CLASSIFIER') &&
+  state.toolPermissionContext.mode === 'auto')
+  ) {
+    toolPermissionContext = {
+      ...toolPermissionContext,
+      mode: agentPermissionMode,
+    }
+  }
 
- // Rule 2: Asynchronous Agents cannot pop permission dialogs
- // But bubble mode is an exception (bubbles up to the parent terminal)
- const shouldAvoidPrompts =
- canShowPermissionPrompts !== undefined
- ? !canShowPermissionPrompts
- : agentPermissionMode === 'bubble'
- ? false
- : isAsync
+  // Rule 2: Asynchronous Agents cannot pop permission dialogs
+  // But bubble mode is an exception (bubbles up to the parent terminal)
+  const shouldAvoidPrompts =
+  canShowPermissionPrompts !== undefined
+  ? !canShowPermissionPrompts
+  : agentPermissionMode === 'bubble'
+  ? false
+  : isAsync
 
- // Rule 3: Asynchronous but can display prompt Agents
- // → Wait for automated checks (classifier, hooks), then pop dialogs
- if (isAsync && !shouldAvoidPrompts) {
- toolPermissionContext = {
- ...toolPermissionContext,
- awaitAutomatedChecksBeforeDialog: true,
- }
- }
+  // Rule 3: Asynchronous but can display prompt Agents
+  // → Wait for automated checks (classifier, hooks), then pop dialogs
+  if (isAsync && !shouldAvoidPrompts) {
+    toolPermissionContext = {
+      ...toolPermissionContext,
+      awaitAutomatedChecksBeforeDialog: true,
+    }
+  }
 
- // Rule 4: Tool permission scope
- // Retain SDK level --allowedTools (cliArg)
- // But clear parent session level permissions
- if (allowedTools !== undefined) {
- toolPermissionContext = {
- ...toolPermissionContext,
- alwaysAllowRules: {
- cliArg: state.toolPermissionContext.alwaysAllowRules.cliArg,
- session: [...allowedTools],
- },
- }
- }
+  // Rule 4: Tool permission scope
+  // Retain SDK level --allowedTools (cliArg)
+  // But clear parent session level permissions
+  if (allowedTools !== undefined) {
+    toolPermissionContext = {
+      ...toolPermissionContext,
+      alwaysAllowRules: {
+        cliArg: state.toolPermissionContext.alwaysAllowRules.cliArg,
+        session: [...allowedTools],
+      },
+    }
+  }
 }
 ```
 
@@ -243,35 +243,35 @@ const agentGetAppState = () => {
 
 ```typescript
 export function filterToolsForAgent({
- tools, isBuiltIn, isAsync, permissionMode,
+  tools, isBuiltIn, isAsync, permissionMode,
 }): Tools {
- return tools.filter(tool => {
- // Rule 1: MCP tools are always allowed
- if (tool.name.startsWith('mcp__')) return true
- 
- // Rule 2: plan mode Agents allow ExitPlanMode
- if (toolMatchesName(tool, EXIT_PLAN_MODE_V2_TOOL_NAME)
- && permissionMode === 'plan') return true
- 
- // Rule 3: Tools disallowed by all Agents
- if (ALL_AGENT_DISALLOWED_TOOLS.has(tool.name)) return false
- // → AskUserQuestion, EnterPlanMode, ExitPlanMode, Brief
- 
- // Rule 4: Additional tools disallowed by custom Agents
- if (!isBuiltIn && CUSTOM_AGENT_DISALLOWED_TOOLS.has(tool.name))
- return false
- 
- // Rule 5: Asynchronous Agents only allow whitelisted tools
- if (isAsync && !ASYNC_AGENT_ALLOWED_TOOLS.has(tool.name)) {
- // Exception: in-process teammate in Swarm mode
- if (isAgentSwarmsEnabled() && isInProcessTeammate()) {
- if (toolMatchesName(tool, AGENT_TOOL_NAME)) return true
- if (IN_PROCESS_TEAMMATE_ALLOWED_TOOLS.has(tool.name)) return true
- }
- return false
- }
- return true
- })
+  return tools.filter(tool => {
+    // Rule 1: MCP tools are always allowed
+    if (tool.name.startsWith('mcp__')) return true
+
+    // Rule 2: plan mode Agents allow ExitPlanMode
+    if (toolMatchesName(tool, EXIT_PLAN_MODE_V2_TOOL_NAME)
+    && permissionMode === 'plan') return true
+
+    // Rule 3: Tools disallowed by all Agents
+    if (ALL_AGENT_DISALLOWED_TOOLS.has(tool.name)) return false
+    // → AskUserQuestion, EnterPlanMode, ExitPlanMode, Brief
+
+    // Rule 4: Additional tools disallowed by custom Agents
+    if (!isBuiltIn && CUSTOM_AGENT_DISALLOWED_TOOLS.has(tool.name))
+    return false
+
+    // Rule 5: Asynchronous Agents only allow whitelisted tools
+    if (isAsync && !ASYNC_AGENT_ALLOWED_TOOLS.has(tool.name)) {
+      // Exception: in-process teammate in Swarm mode
+      if (isAgentSwarmsEnabled() && isInProcessTeammate()) {
+        if (toolMatchesName(tool, AGENT_TOOL_NAME)) return true
+        if (IN_PROCESS_TEAMMATE_ALLOWED_TOOLS.has(tool.name)) return true
+      }
+      return false
+    }
+    return true
+  })
 }
 ```
 
@@ -279,25 +279,25 @@ export function filterToolsForAgent({
 
 ```typescript
 export function resolveAgentTools(
- agentDefinition, availableTools, isAsync, isMainThread,
+agentDefinition, availableTools, isAsync, isMainThread,
 ): ResolvedAgentTools {
- // Step 1: Basic filtering (filterToolsForAgent above)
- const filteredAvailableTools = isMainThread
- ? availableTools // Skip filtering for the main thread!
- : filterToolsForAgent({ ... })
+  // Step 1: Basic filtering (filterToolsForAgent above)
+  const filteredAvailableTools = isMainThread
+  ? availableTools // Skip filtering for the main thread!
+  : filterToolsForAgent({ ... })
 
- // Step 2: Remove disallowedTools
- const allowedAvailableTools = filteredAvailableTools.filter(
- tool => !disallowedToolSet.has(tool.name),
- )
+  // Step 2: Remove disallowedTools
+  const allowedAvailableTools = filteredAvailableTools.filter(
+  tool => !disallowedToolSet.has(tool.name),
+  )
 
- // Step 3: If tools is ['*'] or undefined → Allow all
- if (hasWildcard) return { resolvedTools: allowedAvailableTools }
+  // Step 3: If tools is ['*'] or undefined → Allow all
+  if (hasWildcard) return { resolvedTools: allowedAvailableTools }
 
- // Step 4: Precise match the Agent-defined tool list
- for (const toolSpec of agentTools) {
- const { toolName, ruleContent } = permissionRuleValueFromString(toolSpec)
- }
+  // Step 4: Precise match the Agent-defined tool list
+  for (const toolSpec of agentTools) {
+    const { toolName, ruleContent } = permissionRuleValueFromString(toolSpec)
+  }
 ```plaintext
 // Special: Agent tools can carry allowedAgentTypes metadata
 // For example: "Agent(worker, researcher)" → Only these two sub Agents are allowed
@@ -631,7 +631,6 @@ try {
  rootSetAppState(prev => {
  if (!(agentId in prev.todos)) return prev
  const { [agentId]: _removed, ...todos } = prev.todos
-```markdown
 return { ...prev, todos }
 })
 // → No cleanup: Each Agent leaves an empty todos entry
