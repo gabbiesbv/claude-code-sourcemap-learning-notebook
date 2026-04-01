@@ -17,6 +17,8 @@
 
 ## 4b.1 Context Lifecycle Overview
 
+**Building intuition first**: AI models have a limited "memory window" (context window) — they can only remember so much. Claude Code needs to pack the most valuable information into this limited window. The entire context management has three phases: **inject** necessary background at the start (project rules, git status, etc.), **progressively disclose** during runtime (only load what's needed), and **compress** old content when the conversation grows long (from cheap to expensive, layer by layer).
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    Context Lifecycle                                     │
@@ -48,6 +50,8 @@
 ## 4b.2 Phase 1: Context Injection
 
 ### 4b.2.1 context.ts — Session-level Context
+
+**Building intuition first**: Every time you open Claude Code and start a new session, the system automatically collects two types of "background information" to inject into the AI: your project rules (CLAUDE.md files) and the current git status. This information is collected only once at session start (cached to avoid redundant computation) — like checking your calendar once when you arrive at work, not every minute.
 
 At the start of each session, Claude Code collects two types of context, both cached with `memoize` (computed only once per session):
 

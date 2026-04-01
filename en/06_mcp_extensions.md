@@ -12,6 +12,8 @@
 
 ## 6.1 What is MCP?
 
+**Building intuition first**: Claude Code comes with many built-in tools (read files, run commands, etc.), but you might need custom tools (like querying a database or calling an internal API). MCP is a "standard plug" protocol — anyone can write an MCP server in any programming language, and Claude Code will automatically recognize and use the tools it provides. Just like how USB ports let all kinds of devices connect to your computer.
+
 **Model Context Protocol (MCP)** is an open protocol proposed by Anthropic to standardize AI model interactions with external tools and data sources.
 
 ```
@@ -112,6 +114,8 @@ function createMcpTool(serverName, toolDef): Tool {
 ```
 
 ## 6.4 ToolSearch — Lazy Loading Tools
+
+**Building intuition first**: If you have 100 tools and send all 100 full descriptions to the AI on every API call, the tool descriptions alone would consume massive tokens. ToolSearch's solution is "load on demand" — initially only send core tools, with other tools represented by just a name and keywords. When the AI needs a specific tool, its full description is loaded dynamically. Like a phone's App Store — you don't install every app upfront, you download them when needed.
 
 When there are many tools (built-in + MCP), sending all to the API consumes significant tokens. ToolSearch enables lazy loading:
 

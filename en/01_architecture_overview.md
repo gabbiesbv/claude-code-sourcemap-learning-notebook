@@ -11,6 +11,8 @@ After reading this chapter, you will understand:
 
 ## 1.1 What is Claude Code?
 
+**Building intuition first**: Claude Code is not just a chatbot — it's an AI that can directly read your files, run commands in your terminal, and edit your code. Think of it as a programming partner who sits next to you, has access to your entire project, and can actually *do* things, not just talk about them.
+
 Claude Code is Anthropic's official **AI programming assistant CLI tool**. Its core philosophy:
 
 > **Let the Claude model directly operate your filesystem and terminal, working like a true programming partner.**

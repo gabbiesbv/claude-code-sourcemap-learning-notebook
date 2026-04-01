@@ -12,6 +12,8 @@
 
 ## 6.1 MCP 是什么？
 
+**先建立直觉**：Claude Code 内置了很多工具（读文件、跑命令等），但你可能还需要自定义工具（比如查数据库、调用内部 API）。MCP 就是一个"标准插头"协议——任何人都可以用任何编程语言写一个 MCP 服务器，Claude Code 就能自动识别并使用它提供的工具。就像 USB 接口让各种设备都能连接电脑一样。
+
 **Model Context Protocol (MCP)** 是 Anthropic 提出的开放协议，
 用于标准化 AI 模型与外部工具/数据源的交互。
 
@@ -113,6 +115,8 @@ function createMcpTool(serverName, toolDef): Tool {
 ```
 
 ## 6.4 ToolSearch — 延迟加载工具
+
+**先建立直觉**：如果你有 100 个工具，每次 API 调用都把 100 个工具的完整描述发给 AI，那光工具描述就要消耗大量 token。ToolSearch 的解决方案是"按需加载"——初始只发送核心工具，其他工具只发一个名字和关键词。当 AI 需要某个工具时，再动态加载它的完整描述。就像手机 App Store——你不会把所有 App 都装上，需要时才下载。
 
 当工具数量很多时（内置 + MCP），全部发送给 API 会消耗大量 token。
 ToolSearch 机制允许延迟加载：

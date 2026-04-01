@@ -18,6 +18,8 @@
 
 ## 5.1 Architectural Overview
 
+**Building intuition first**: Sometimes a task is too big for one AI to handle alone. Claude Code's solution is "cloning" — the main AI can create child Agents to handle subtasks in parallel. Think of it like a project manager delegating work to team members: some tasks are handed off synchronously (like face-to-face assignments), some run asynchronously in the background (like email assignments), and some share context (like collaborating on the same document).
+
 ### 5.1.1 Three Operation Modes of Agent Systems
 
 ```
@@ -63,6 +65,8 @@ AgentTool/
 
 ---
 ## 5.2 createSubagentContext — "Default Isolation, Explicit Sharing"
+
+**Building intuition first**: When the main AI creates a child Agent, the child gets its own independent "workspace" by default — its own file cache, its own memory, its own cancellation controller. If something needs to be shared (like letting the child pop up permission dialogs), it must be **explicitly declared**. It's like a company assigning new employees their own desk, but if they need access to the shared printer, they have to apply for permission separately.
 
 This is the most core design decision of the entire Agent system. `createSubagentContext` creates the execution context for child Agents,
 **default isolates all mutable states**, and callers must explicitly opt-in to share:

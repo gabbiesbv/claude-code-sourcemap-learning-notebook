@@ -10,6 +10,8 @@
 
 ## 3.1 Why Do We Need a Permission System?
 
+**Building intuition first**: Claude Code lets AI directly operate your computer — read/write files, execute commands, access the network. It's like handing your house keys to a very smart but occasionally fallible assistant. The permission system sets the rules for this assistant: which rooms they can freely enter, which ones require asking you first, and which ones are absolutely off-limits.
+
 Claude Code lets AI directly operate your filesystem and terminal. This means:
 
 | Risk | Example |
@@ -31,6 +33,8 @@ Layer 1: Permission Rules (deny/ask/allow)
 ```
 
 ## 3.2 Complete Permission Check Flow
+
+**Building intuition first**: When the AI wants to perform an action, the system runs it through a series of "checkpoints" to decide whether to allow it. This flow is like airport security — first check the blacklist (immediate rejection), then the watchlist (manual inspection needed), then your ticket (permission mode), and only then let you through. Each layer can intercept the request, with later layers being more lenient.
 
 Core function: `hasPermissionsToUseToolInner()` (permissions.ts)
 

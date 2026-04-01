@@ -14,6 +14,8 @@
 
 ## 8.1 Voice Mode — Hold-to-Talk Voice Input
 
+**Building intuition first**: Voice mode lets you hold a shortcut key and speak — Claude Code converts your speech to text input. The full flow is: hold key → record audio → send via WebSocket to speech recognition service → recognized text auto-fills the input box. But this feature isn't available to everyone — it must pass three layers of checks (compile-time feature gate, OAuth authentication, remote kill-switch), and failing any layer disables it.
+
 ### 8.1.1 Tech Stack Overview
 
 ```

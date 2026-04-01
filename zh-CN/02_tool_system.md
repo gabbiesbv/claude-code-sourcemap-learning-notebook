@@ -10,59 +10,72 @@
 
 ## 2.1 Tool 接口全景 (Tool.ts)
 
+**先建立直觉**：在 Claude Code 中，"工具"就是 AI 能执行的具体操作——读文件、跑命令、搜索代码等。每个工具都必须遵循一套统一的"接口契约"，就像所有电器都必须用标准插头一样。这个契约定义了：工具叫什么名字、接受什么输入、怎么执行、需要什么权限、怎么在终端上显示结果。
+
 `Tool.ts` (28KB, 793行) 定义了所有工具必须遵循的接口。这是整个工具系统的"宪法"。
 
 ### 核心接口结构
 
+下面是完整的 Tool 接口。字段很多，但按功能分成了 7 组，每组只需关注 1-2 个核心方法：
+
 ```typescript
 export type Tool<Input, Output, Progress> = {
   // ========== 身份标识 ==========
-  readonly name: string; // 工具名称，如 'Glob', 'Bash', 'Read'
-  aliases?: string[]; // 别名（重命名后向后兼容）
-  searchHint?: string; // ToolSearch 关键词匹配提示
+  // Every tool has a unique name, like 'Glob', 'Bash', 'Read'
+  readonly name: string;
+  aliases?: string[];             // Backward-compatible aliases after renaming
+  searchHint?: string;            // Keywords for ToolSearch matching
  
   // ========== Schema 定义 ==========
-  readonly inputSchema: Input; // Zod schema，定义输入参数
-  outputSchema?: z.ZodType; // 输出 schema
-  readonly inputJSONSchema?: object; // MCP 工具的 JSON Schema
+  // Defines what input the tool accepts and what output it produces
+  readonly inputSchema: Input;    // Zod schema for input validation
+  outputSchema?: z.ZodType;       // Output schema (optional)
+  readonly inputJSONSchema?: object; // JSON Schema format for MCP tools
  
   // ========== 核心执行 ==========
+  // The main method — this is where the tool actually does its work
   call(args, context, canUseTool, parentMessage, onProgress?)
-  : Promise<ToolResult<Output>>; // 执行工具的核心方法
+  : Promise<ToolResult<Output>>;
  
   // ========== 权限与安全 ==========
+  // These methods control whether the tool is allowed to run
   validateInput?(input, context): Promise<ValidationResult>;
   checkPermissions(input, context): Promise<PermissionResult>;
-  isReadOnly(input): boolean; // 是否只读操作
-  isDestructive?(input): boolean; // 是否不可逆操作
-  isEnabled(): boolean; // 是否启用
-  isConcurrencySafe(input): boolean; // 是否可并发执行
+  isReadOnly(input): boolean;           // Read-only? (affects concurrency)
+  isDestructive?(input): boolean;       // Irreversible? (e.g. rm -rf)
+  isEnabled(): boolean;                 // Is this tool currently active?
+  isConcurrencySafe(input): boolean;    // Can run in parallel with others?
  
   // ========== Prompt 生成 ==========
-  description(input, options): Promise<string>; // 给 LLM 的描述
-  prompt(options): Promise<string>; // 完整的工具提示词
+  // Tells the AI model what this tool does and how to use it
+  description(input, options): Promise<string>;
+  prompt(options): Promise<string>;
  
   // ========== UI 渲染 ==========
-  renderToolUseMessage(input, options): React.ReactNode; // 渲染工具调用
-  renderToolResultMessage?(output, progress, options): React.ReactNode; // 渲染结果
-  renderToolUseProgressMessage?(progress, options): React.ReactNode; // 渲染进度
-  renderToolUseRejectedMessage?(input, options): React.ReactNode; // 渲染拒绝
-  renderToolUseErrorMessage?(result, options): React.ReactNode; // 渲染错误
+  // How the tool's actions and results appear in the terminal
+  renderToolUseMessage(input, options): React.ReactNode;
+  renderToolResultMessage?(output, progress, options): React.ReactNode;
+  renderToolUseProgressMessage?(progress, options): React.ReactNode;
+  renderToolUseRejectedMessage?(input, options): React.ReactNode;
+  renderToolUseErrorMessage?(result, options): React.ReactNode;
  
   // ========== 序列化 ==========
+  // Converts results to API-compatible format
   mapToolResultToToolResultBlockParam(output, toolUseID): ToolResultBlockParam;
-  toAutoClassifierInput(input): unknown; // 安全分类器输入
+  toAutoClassifierInput(input): unknown;
  
   // ========== 辅助方法 ==========
-  userFacingName(input): string; // 用户可见名称
-  getPath?(input): string; // 获取操作路径
-  getToolUseSummary?(input): string; // 简短摘要
-  getActivityDescription?(input): string; // 活动描述（spinner）
-  maxResultSizeChars: number; // 结果最大字符数
+  userFacingName(input): string;        // Display name for users
+  getPath?(input): string;              // File path being operated on
+  getToolUseSummary?(input): string;    // One-line summary for mobile UI
+  getActivityDescription?(input): string; // Spinner text while running
+  maxResultSizeChars: number;           // Max chars in result (prevents huge outputs)
 };
 ```
 
 ## 2.2 buildTool() — 工具工厂函数
+
+**先建立直觉**：上面的 Tool 接口有 20+ 个方法，如果每个工具都要从零实现所有方法，那太繁琐了。`buildTool()` 就是一个"工厂"——它提供了一套安全的默认值，开发者只需要覆盖自己关心的部分。特别注意：所有安全相关的默认值都是**最保守的**（不确定就不并发、不确定就假设会写入），这确保了即使开发者忘记设置某个属性，也不会造成安全问题。
 
 所有工具都通过 `buildTool()` 创建，它提供了安全的默认值：
 

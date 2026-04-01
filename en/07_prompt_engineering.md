@@ -13,6 +13,8 @@
 ---
 ## 7.1 Prompt Overview
 
+**Building intuition first**: Prompts are the "instruction manual" given to the AI. Claude Code's prompt system is massive (150KB+ of pure text across 40+ files), but can be simply understood as 7 categories: system-level "constitution" (defining who the AI is and how it behaves), tool-level "operation manuals" (telling the AI how to use each tool), agent-level "role descriptions" (behavior guides for different Agent types), plus auxiliary prompts for compression, security, memory, and more.
+
 The prompt system of Claude Code can be divided into **7 major categories**:
 
 ```

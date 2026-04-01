@@ -20,31 +20,39 @@
 
 ### 4.1.1 核心设计决策：while(true) + State 对象
 
-query.ts 的核心是一个 `while(true)` 循环，而不是递归调用。这是一个深思熟虑的设计：
+**先建立直觉**：想象你在和 AI 对话——你说一句，AI 回一句，如果 AI 需要执行某个操作（比如读文件、跑命令），它就去执行，然后把结果告诉你，再继续回答。这个"说→做→说→做"的过程就是 query loop 的一次次迭代。
+
+而 State 对象就是这个循环的**记事本**——它记录了当前对话进行到哪了、之前出过什么错、尝试过哪些恢复手段。每次循环开始时，代码从这个记事本里读取状态；每次循环结束时，把新状态写回去。
+
+query.ts 用 `while(true)` 无限循环（而非递归调用）来实现这个过程。下面是 State 的完整定义，字段按功能分为三组：
 
 ```typescript
-// 可变的跨迭代状态。循环体在每次迭代开始时解构它。
-// Continue 站点写 `state = { ... }` 而不是 9 个单独的赋值。
 type State = {
-  messages: Message[]
-  toolUseContext: ToolUseContext
-  autoCompactTracking: AutoCompactTrackingState | undefined
-  maxOutputTokensRecoveryCount: number
-  hasAttemptedReactiveCompact: boolean
-  maxOutputTokensOverride: number | undefined
-  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
-  stopHookActive: boolean | undefined
-  turnCount: number
-  // 上一次迭代为什么继续。第一次迭代时为 undefined。
-  // 让测试可以断言恢复路径是否触发，而无需检查消息内容。
-  transition: Continue | undefined
+  // ===== 第一组：核心对话状态 =====
+  messages: Message[]           // The conversation history (all messages so far)
+  toolUseContext: ToolUseContext // Shared context for tool execution (file cache, permissions, etc.)
+  turnCount: number             // How many loop iterations have run
+
+  // ===== 第二组：压缩与恢复追踪 =====
+  // These fields track error recovery attempts to prevent infinite retry loops
+  autoCompactTracking: AutoCompactTrackingState | undefined  // Tracks auto-compression state (undefined = not started)
+  maxOutputTokensRecoveryCount: number    // How many times we've retried after output truncation
+  hasAttemptedReactiveCompact: boolean    // Whether we've already tried emergency compression
+  maxOutputTokensOverride: number | undefined  // Upgraded output limit (undefined = use default)
+  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined  // Async summary being generated in background
+
+  // ===== 第三组：流程控制 =====
+  stopHookActive: boolean | undefined  // Whether stop hooks are currently running
+  transition: Continue | undefined     // WHY the last iteration continued (undefined on first iteration)
+  // The transition field is not just for debugging — it's a guard against recovery loops (see below)
 }
 ```
 
-**巧思1：transition 字段**
+> **给非 TS 读者的提示**：`X | undefined` 表示"这个值可能不存在"，类似其他语言的 `null`/`None`。`Promise<X>` 表示"一个正在后台运行的异步操作，最终会产出 X 类型的结果"。
 
-注意 `transition` 字段 — 它记录了"为什么上一次迭代选择了 continue"。这不只是调试用的，
-它还用于**防止恢复循环**：
+**巧思1：transition 字段 — 防止恢复死循环**
+
+State 中最巧妙的是 `transition` 字段。它记录了"上一次迭代为什么选择了 continue"。这不只是调试用的，它还用于**防止恢复循环**——如果上次已经尝试过某种恢复手段但失败了，这次就不再重复尝试：
 
 ```typescript
 // 如果上一次已经做了 collapse_drain_retry，这次还是 413，
@@ -87,7 +95,7 @@ while(true) + State 的优势：
 
 **巧思2：continue 站点的状态重置策略**
 
-每个 continue 站点都精确控制哪些状态重置、哪些保留：
+每个 continue 站点（即循环中决定"继续下一轮"的地方）都精确控制哪些状态重置、哪些保留。这就像医生在不同情况下开不同的处方——正常复诊时清零所有临时记录，但如果上次治疗出了问题，就要保留那次的记录以避免重蹈覆辙：
 
 ```typescript
 // max_output_tokens 恢复：保留 hasAttemptedReactiveCompact
@@ -307,6 +315,8 @@ T+12000ms Phase 3: 停止判断
 
 ### 4.2.1 核心问题：为什么需要流式执行？
 
+**先建立直觉**：传统做法是等 AI 说完所有话，再去执行它要求的操作。这就像老板写完一整页待办事项交给你，你才开始逐条执行。而流式执行就像老板边说边写，你看到第一条就立刻去做，不等他写完——这样总耗时大幅缩短。
+
 传统方式：等 Claude 返回完整响应 → 解析所有 tool_use → 执行工具
 
 ```
@@ -327,6 +337,8 @@ T+12000ms Phase 3: 停止判断
 ```
 
 ### 4.2.2 并发控制模型：为什么不用 Actor 或 DAG？
+
+**先建立直觉**：当 AI 同时要求执行多个操作时，哪些可以并行、哪些必须排队？Claude Code 的答案很简单——**读操作可以并行，写操作必须独占**。这就像图书馆：多人可以同时看书（读），但只能一个人在书上做标注（写）。
 
 在深入实现之前，先理解**为什么选择这个方案**：
 
@@ -365,7 +377,7 @@ T+12000ms Phase 3: 停止判断
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-StreamingToolExecutor 使用了一个精巧的并发控制模型：
+StreamingToolExecutor 使用了一个精巧的并发控制模型。核心逻辑只有一个判断：**新工具能否与正在执行的工具并行？** 规则是：如果大家都是"并发安全"的（即只读操作），就可以并行；否则必须等待：
 
 ```typescript
 // 核心判断：这个工具能否与其他工具并行执行？
@@ -400,6 +412,8 @@ private canExecuteTool(isConcurrencySafe: boolean): boolean {
 ```
 
 ### 4.2.3 Sibling Abort — Bash 错误级联取消
+
+**先建立直觉**：假设 AI 同时让你执行三个 shell 命令：安装依赖、编译代码、运行测试。如果"安装依赖"失败了，后面的"编译"和"测试"显然也没意义了。Sibling Abort 就是这个逻辑——一个 Bash 命令失败时，自动取消同批次的其他 Bash 命令。但注意：只有 Bash 命令之间才有这种级联关系，读文件失败不会影响其他操作。
 
 这是一个非常精妙的设计。当多个 Bash 命令并行执行时，如果一个失败了，
 其他的通常也没有意义了（因为 Bash 命令经常有隐式依赖链）：
@@ -542,6 +556,8 @@ if (streamingFallbackOccured) {
 ---
 ## 4.3 多层压缩策略 — 上下文管理的瑞士军刀
 
+**先建立直觉**：AI 对话越长，消耗的 token 越多，成本越高，速度越慢。当对话历史太长时，就需要"压缩"——把旧的、不太重要的内容精简掉。Claude Code 设计了 5 层压缩策略，就像整理房间：先扔掉明显的垃圾（零成本），再整理抽屉（低成本），最后才请搬家公司来大扫除（高成本）。
+
 Claude Code 有 **5 层**上下文压缩策略，按执行顺序排列：
 
 ```
@@ -594,6 +610,8 @@ toolResultBudget → snip → microcompact → collapse → autocompact
 
 ### 4.3.1 Context Collapse 的"读时投影"设计
 
+**先建立直觉**：Context Collapse 不会修改原始对话记录——它更像是给一本厚书加了一个"精华摘要目录"。原书还在，但每次翻阅时先看目录，只有需要细节时才翻到原文。这样既节省了 token，又不会丢失任何原始信息。
+
 这是一个特别优雅的设计模式：
 
 ```typescript
@@ -624,9 +642,11 @@ projectView() 的输出 (每次迭代重新计算):
 ---
 ## 4.4 错误恢复的分层设计
 
+**先建立直觉**：AI 对话中会遇到两类常见错误——"AI 说到一半被截断了"和"对话太长 API 拒绝了"。Claude Code 对每种错误都设计了三阶段恢复策略：先尝试最简单的修复，不行再升级，最后才放弃。就像汽车抛锚：先试试重新打火（免费），不行就叫拖车（花钱），实在不行才叫救护车（昂贵）。
+
 ### 4.4.1 max_output_tokens 恢复（三阶段）
 
-当 Claude 的输出被截断时，恢复策略分三个阶段：
+当 Claude 的输出被截断时（说到一半被强制停止），恢复策略分三个阶段：
 
 ```
 阶段1: Escalate (升级限制)
@@ -680,6 +700,8 @@ projectView() 的输出 (每次迭代重新计算):
 
 ### 4.4.3 Withhold 模式 — 延迟错误显示
 
+**先建立直觉**：当出现可恢复的错误时，Claude Code 不会立刻把错误展示给用户（或 SDK 消费者），而是先"扣住"这个错误，在后台尝试恢复。只有恢复失败了，才把错误暴露出来。这就像快递丢件——快递公司不会第一时间告诉你"丢了"，而是先内部查找、补发，实在找不到才通知你。
+
 这是一个关键的设计模式：在流式循环中，可恢复的错误被"扣留"而不是立即 yield：
 
 ```typescript
@@ -710,6 +732,8 @@ const mediaRecoveryEnabled =
 
 ---
 ## 4.5 Prompt Cache 全链路优化
+
+**先建立直觉**：每次调用 AI API 都要发送完整的对话历史，这很贵。但如果两次调用的前半部分完全相同（比如系统提示词 + 前几轮对话），API 可以缓存这部分，只对新增内容收费。Claude Code 的很多设计都是为了**最大化这个缓存命中率**——确保每次请求的前缀尽可能与上次相同。
 
 ### 4.5.1 缓存命中的条件
 
@@ -785,6 +809,8 @@ const dumpPromptsFetch = config.gates.isAnt
 
 ---
 ## 4.6 Token Budget — 智能的"继续"决策
+
+**先建立直觉**：有时候你希望 AI 在一次对话中做更多事情（比如"帮我重构整个模块"），而不是每做一步就停下来等你确认。Token Budget 就是给 AI 一个"预算"——在预算内它可以持续工作，用完了才停。但如果 AI 开始"摸鱼"（每轮只产出很少内容），系统会提前叫停，避免浪费。
 
 Token Budget 是一个让 Claude 在单次 turn 中使用更多 token 的机制：
 

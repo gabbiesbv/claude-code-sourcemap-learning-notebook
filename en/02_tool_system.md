@@ -10,39 +10,49 @@
 
 ## 2.1 Tool Interface Overview (Tool.ts)
 
+**Building intuition first**: In Claude Code, a "tool" is any concrete action the AI can perform — reading a file, running a shell command, searching code, etc. Every tool must follow a unified "interface contract", like how all electrical appliances must use a standard plug. This contract defines: what the tool is called, what input it accepts, how it executes, what permissions it needs, and how to display results in the terminal.
+
 `Tool.ts` (28KB, 793 lines) defines the interface all tools must follow. This is the "constitution" of the entire tool system.
 
 ### Core Interface Structure
 
+The full Tool interface is shown below. There are many fields, but they're organized into 7 groups — you only need to focus on 1-2 core methods per group:
+
 ```typescript
 export type Tool<Input, Output, Progress> = {
   // ========== Identity ==========
-  readonly name: string;          // Tool name, e.g. 'Glob', 'Bash', 'Read'
-  aliases?: string[];             // Aliases (backward compatibility after rename)
-  searchHint?: string;            // ToolSearch keyword matching hint
+  // Every tool has a unique name, like 'Glob', 'Bash', 'Read'
+  readonly name: string;
+  aliases?: string[];             // Backward-compatible aliases after renaming
+  searchHint?: string;            // Keywords for ToolSearch matching
 
   // ========== Schema Definition ==========
-  readonly inputSchema: Input;    // Zod schema, defines input parameters
-  outputSchema?: z.ZodType;       // Output schema
-  readonly inputJSONSchema?: object; // JSON Schema for MCP tools
+  // Defines what input the tool accepts and what output it produces
+  readonly inputSchema: Input;    // Zod schema for input validation
+  outputSchema?: z.ZodType;       // Output schema (optional)
+  readonly inputJSONSchema?: object; // JSON Schema format for MCP tools
 
   // ========== Core Execution ==========
+  // The main method — this is where the tool actually does its work
   call(args, context, canUseTool, parentMessage, onProgress?)
-    : Promise<ToolResult<Output>>; // Core method to execute the tool
+    : Promise<ToolResult<Output>>;
 
   // ========== Permissions & Security ==========
+  // These methods control whether the tool is allowed to run
   validateInput?(input, context): Promise<ValidationResult>;
   checkPermissions(input, context): Promise<PermissionResult>;
-  isReadOnly(input): boolean;           // Is this a read-only operation
-  isDestructive?(input): boolean;       // Is this an irreversible operation
-  isEnabled(): boolean;                 // Is this tool enabled
-  isConcurrencySafe(input): boolean;    // Can this run concurrently
+  isReadOnly(input): boolean;           // Read-only? (affects concurrency)
+  isDestructive?(input): boolean;       // Irreversible? (e.g. rm -rf)
+  isEnabled(): boolean;                 // Is this tool currently active?
+  isConcurrencySafe(input): boolean;    // Can run in parallel with others?
 
   // ========== Prompt Generation ==========
-  description(input, options): Promise<string>;  // Description for LLM
-  prompt(options): Promise<string>;              // Complete tool prompt
+  // Tells the AI model what this tool does and how to use it
+  description(input, options): Promise<string>;
+  prompt(options): Promise<string>;
 
   // ========== UI Rendering ==========
+  // How the tool's actions and results appear in the terminal
   renderToolUseMessage(input, options): React.ReactNode;
   renderToolResultMessage?(output, progress, options): React.ReactNode;
   renderToolUseProgressMessage?(progress, options): React.ReactNode;
@@ -50,19 +60,22 @@ export type Tool<Input, Output, Progress> = {
   renderToolUseErrorMessage?(result, options): React.ReactNode;
 
   // ========== Serialization ==========
+  // Converts results to API-compatible format
   mapToolResultToToolResultBlockParam(output, toolUseID): ToolResultBlockParam;
   toAutoClassifierInput(input): unknown;
 
   // ========== Helper Methods ==========
-  userFacingName(input): string;
-  getPath?(input): string;
-  getToolUseSummary?(input): string;
-  getActivityDescription?(input): string;
-  maxResultSizeChars: number;
+  userFacingName(input): string;        // Display name for users
+  getPath?(input): string;              // File path being operated on
+  getToolUseSummary?(input): string;    // One-line summary for mobile UI
+  getActivityDescription?(input): string; // Spinner text while running
+  maxResultSizeChars: number;           // Max chars in result (prevents huge outputs)
 };
 ```
 
 ## 2.2 buildTool() — The Tool Factory Function
+
+**Building intuition first**: The Tool interface above has 20+ methods. If every tool had to implement all of them from scratch, that would be tedious. `buildTool()` is a "factory" — it provides safe defaults, so developers only need to override what they care about. Notably, all security-related defaults are **maximally conservative** (if unsure, don't parallelize; if unsure, assume it writes) — this ensures that even if a developer forgets to set a property, it won't cause security issues.
 
 All tools are created through `buildTool()`, which provides safe defaults:
 

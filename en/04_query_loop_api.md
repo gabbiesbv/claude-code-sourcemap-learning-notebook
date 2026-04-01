@@ -20,31 +20,39 @@
 
 ### 4.1.1 Core Design Decision: while(true) + State Object
 
-The core of query.ts is a `while(true)` loop, not recursive calls. This is a well-considered design:
+**Building intuition first**: Imagine you're having a conversation with an AI — you say something, the AI responds, and if the AI needs to perform an action (like reading a file or running a command), it goes and does it, then tells you the result and continues responding. This "talk → act → talk → act" cycle is what the query loop does, iteration after iteration.
+
+The State object is this loop's **notebook** — it records where the conversation is at, what errors have occurred, and what recovery strategies have been tried. At the start of each iteration, the code reads from this notebook; at the end, it writes the new state back.
+
+The core of query.ts is a `while(true)` loop, not recursive calls. This is a well-considered design. Below is the full State definition, with fields organized into three functional groups:
 
 ```typescript
-// Mutable cross-iteration state. The loop body destructures it at the beginning of each iteration.
-// Continue sites write `state = { ... }` instead of 9 separate assignments.
 type State = {
-  messages: Message[]
-  toolUseContext: ToolUseContext
-  autoCompactTracking: AutoCompactTrackingState | undefined
-  maxOutputTokensRecoveryCount: number
-  hasAttemptedReactiveCompact: boolean
-  maxOutputTokensOverride: number | undefined
-  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
-  stopHookActive: boolean | undefined
-  turnCount: number
-  // Why the last iteration continued. Undefined for the first iteration.
-  // Allows tests to assert whether the recovery path is triggered without checking message content.
-  transition: Continue | undefined
+  // ===== Group 1: Core conversation state =====
+  messages: Message[]           // The conversation history (all messages so far)
+  toolUseContext: ToolUseContext // Shared context for tool execution (file cache, permissions, etc.)
+  turnCount: number             // How many loop iterations have run
+
+  // ===== Group 2: Compression & recovery tracking =====
+  // These fields track error recovery attempts to prevent infinite retry loops
+  autoCompactTracking: AutoCompactTrackingState | undefined  // Tracks auto-compression state (undefined = not started)
+  maxOutputTokensRecoveryCount: number    // How many times we've retried after output truncation
+  hasAttemptedReactiveCompact: boolean    // Whether we've already tried emergency compression
+  maxOutputTokensOverride: number | undefined  // Upgraded output limit (undefined = use default)
+  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined  // Async summary being generated in background
+
+  // ===== Group 3: Flow control =====
+  stopHookActive: boolean | undefined  // Whether stop hooks are currently running
+  transition: Continue | undefined     // WHY the last iteration continued (undefined on first iteration)
+  // The transition field is not just for debugging — it's a guard against recovery loops (see below)
 }
 ```
 
-**Ingenuity1: transition field**
+> **Note for non-TS readers**: `X | undefined` means "this value might not exist", similar to `null`/`None` in other languages. `Promise<X>` means "an async operation running in the background that will eventually produce a result of type X".
 
-Note the `transition` field - it records "why the last iteration chose to continue". This is not just for debugging,
-it is also used to **prevent the recovery loop**:
+**Ingenuity 1: transition field — preventing recovery death loops**
+
+The cleverest field in State is `transition`. It records "why the last iteration chose to continue". This is not just for debugging — it's used to **prevent recovery loops**: if the last iteration already tried a certain recovery strategy and it failed, this iteration won't repeat it:
 
 ```typescript
 // If the last one already did collapse_drain_retry, and this one is still 413,
@@ -69,7 +77,9 @@ if (state.transition?.reason !== 'collapse_drain_retry') {
 
 ### 4.1.2 Why not use recursion?
 
-The early version might have been recursive (there are still `query_recursive_call` checkpoints in the comments), but it was changed to a loop:
+The early version might have been recursive (there are still `query_recursive_call` checkpoints in the comments), but it was changed to a loop.
+
+**Analogy**: Recursion is like Russian nesting dolls — each layer wraps the previous one, and 100 rounds of conversation means 100 layers of dolls, consuming ever more memory. A `while(true)` loop is like a person sitting at a desk doing repetitive work — they only use one sheet of paper (State) at a time, flipping to the next page when done, keeping memory usage constant.
 
 ```
 Problems with recursion:
@@ -305,10 +315,11 @@ Where prompt cache saved ~80% input token costs for the 2nd and 3rd calls
 ---
 ## 4.2 StreamingToolExecutor — Streaming Concurrent Execution Engine
 
-### 4.2.1 Core Issue: Why is Streaming Execution Needed?
+### 4.2.1 Core Problem: Why Do We Need Streaming Execution?
 
-Traditional approach: Wait for Claude to return a complete response → Parse all tool_use → Execute tools
+**Building intuition first**: The traditional approach is to wait for the AI to finish speaking, then execute all the actions it requested. It's like a boss writing an entire page of to-dos before handing it to you. Streaming execution is like the boss dictating tasks one by one — you start on the first one immediately, without waiting for the full list. This dramatically reduces total time.
 
+Traditional approach: Wait for Claude's complete response → parse all tool_use → execute tools
 ```
 Traditional method (serial):
   Claude response [████████████████] 5s
@@ -326,10 +337,11 @@ Streaming method (StreamingToolExecutor):
   Total: 5 + max(2,3,1.5) = 8s 31% saved
 ```
 
-### 4.2.2 Concurrency Control Model: Why Not Use Actor or DAG?
+### 4.2.2 Concurrency Control Model: Why Not Actor or DAG?
 
-Before diving into the implementation, understand **why this solution was chosen**:
+**Building intuition first**: When the AI requests multiple actions simultaneously, which ones can run in parallel and which must queue? Claude Code's answer is simple — **read operations can run in parallel, write operations must be exclusive**. It's like a library: multiple people can read books at the same time, but only one person can annotate a book at a time.
 
+Before diving into the implementation, let's understand **why this approach was chosen**:
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Comparison of schemes: Three paradigms for Agent tool orchestration                                       │
